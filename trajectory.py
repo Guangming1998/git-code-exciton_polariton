@@ -141,6 +141,9 @@ class Trajectory_SSHmodel():
         # 4: calculate Vj(t+dt)
         self.Vj = self.Vj + 0.5*dt*(Aj+self.accelerate) #update on 2023_4_18
 
+    def RK4(self):
+        self.Xj
+        
     def updateHmol(self):
         for j in range(self.Nmol-1):
             self.Hmol[j,j+1] = -self.staticCoup + self.dynamicCoup * (self.Xj[j+1]-self.Xj[j])
