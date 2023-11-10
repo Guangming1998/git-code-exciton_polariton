@@ -22,7 +22,7 @@ if 'param.in' in sys.argv:
 else:
     ps_to_au = 4.13414e4 # ps to atomic time
     wavenumber_to_au = 4.55634e-6 # energy from wavenumber to atomic unit
-    Adot_to_au = 1.88973
+    Adot_to_au = 1.88973 #angstrom to atomic length
     dt = 1#0.025e-3*ps_to_au
     Ntimes = 6000*2
     Nskip = 10
