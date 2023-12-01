@@ -141,8 +141,55 @@ class Trajectory_SSHmodel():
         # 4: calculate Vj(t+dt)
         self.Vj = self.Vj + 0.5*dt*(Aj+self.accelerate) #update on 2023_4_18
 
-    def RK4(self):
-        self.Xj
+    def x_dot(self,v): #xdot = \partial H/ \partial p = p/m = v
+        return v
+    
+    def v_dot(self,X,Cj,Ehrenfest):
+        Aj = -self.Kconst/self.mass * X
+        if Ehrenfest:
+            for j in range(1,self.Nmol-1):
+                Aj[j] = Aj[j] -self.dynamicCoup/(self.mass)* \
+                        ( 2*np.real(np.conj(Cj[j])*Cj[j-1]) \
+                        - 2*np.real(np.conj(Cj[j])*Cj[j+1]))
+            Aj[0] = Aj[0] -self.dynamicCoup/(self.mass)* \
+                    ( 2*np.real(np.conj(Cj[0])*Cj[-1]) \
+                    - 2*np.real(np.conj(Cj[0])*Cj[1]))
+            Aj[-1] = Aj[-1] -self.dynamicCoup/(self.mass)* \
+                        ( 2*np.real(np.conj(Cj[-1])*Cj[-2]) \
+                        - 2*np.real(np.conj(Cj[-1])*Cj[0]))
+        return Aj
+    
+    def Cj_dot(self,Xj,Cj):
+        Hmol = np.zeros((self.Nmol,self.Nmol),complex)
+        for j in range(self.Nmol-1):
+            Hmol[j,j+1] = -self.staticCoup + self.dynamicCoup * (Xj[j+1]-Xj[j])
+            Hmol[j+1,j] = -self.staticCoup + self.dynamicCoup * (Xj[j+1]-Xj[j])
+        Hmol[0,-1] = -self.staticCoup + self.dynamicCoup * (Xj[0]-Xj[-1])
+        Hmol[-1,0] = -self.staticCoup + self.dynamicCoup * (Xj[0]-Xj[-1])
+        
+        return -1j*np.dot(Hmol,Cj)/self.hbar
+    
+    def RK4(self,dt,Ehrenfest = True):
+        kx1 = self.x_dot(self.Vj)
+        kv1 = self.v_dot(self.Xj,self.Cj,Ehrenfest)
+        kc1 = self.Cj_dot(self.Xj,self.Cj)
+        
+        kx2 = self.x_dot(self.Vj+dt*0.5*kv1)
+        kv2 = self.v_dot(self.Xj+dt*0.5*kx1,self.Cj+dt*0.5*kc1,Ehrenfest)
+        kc2 = self.Cj_dot(self.Xj+dt*0.5*kx1,self.Cj+dt*0.5*kc1)
+        
+        kx3 = self.x_dot(self.Vj+dt*0.5*kv2)
+        kv3 = self.v_dot(self.Xj+dt*0.5*kx2,self.Cj+dt*0.5*kc2,Ehrenfest)
+        kc3 = self.Cj_dot(self.Xj+dt*0.5*kx2,self.Cj+dt*0.5*kc2)
+        
+        kx4 = self.x_dot(self.Vj+dt*kv3)
+        kv4 = self.v_dot(self.Xj+dt*kx3,self.Cj+dt*kc3,Ehrenfest)
+        kc4 = self.Cj_dot(self.Xj+dt*kx3,self.Cj+dt*kc3)
+        
+        self.Xj += self.Xj +dt*(kx1+2*kx2+2*kx3+kx4)/6
+        self.Vj += self.Vj +dt*(kv1+2*kv2+2*kv3+kv4)/6
+        self.Cj += self.Cj +dt*(kc1+2*kc2+2*kc3+kc4)/6
+        
         
     def updateHmol(self):
         for j in range(self.Nmol-1):
