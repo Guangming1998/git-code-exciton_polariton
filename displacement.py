@@ -16,9 +16,32 @@ if '--plot' in sys.argv:
     # plt.rc('text', usetex=True)
     # plt.rc('font', family='Times New Roman', size='10')
 
-
+'unit conversion'
+ps_to_au = 4.13414e4 # ps to atomic time
+wavenumber_to_au = 4.55634e-6 # energy from wavenumber to atomic unit
+Adot_to_au = 1.88973 #angstrom to atomic length
+wavenumber_to_amuAps = 2180.66
+hbar_to_amuAps = 1.1577e4
 if 'param.in' in path:
     exec(open('param.in').read())
+    atomic_unit = True
+    
+    if atomic_unit:
+        staticCoup = 300 *wavenumber_to_au
+        dynamicCoup = 995/Adot_to_au * wavenumber_to_au
+        kBT = 104.3*wavenumber_to_au
+        mass = 100
+        Kconst = 14500/(ps_to_au**2)
+        hbar = 1
+        dt = 0.025e-3*ps_to_au
+    else: #"use amu*A^2*ps^-2 unit"
+        staticCoup = 300 *wavenumber_to_amuAps
+        dynamicCoup = 995 * wavenumber_to_amuAps
+        kBT = 104.3*wavenumber_to_amuAps
+        mass = 100
+        Kconst = 14500
+        hbar = 1*hbar_to_amuAps
+        dt = 0.025e-3
 else:
     atomic_unit = True
     ps_to_au = 4.13414e4 # ps to atomic time

@@ -1,0 +1,8 @@
+staticCoup = 300 
+dynamicCoup = 995 
+kBT = 104.3
+mass = 100
+Kconst = 14500
+hbar = 1
+dt = 0.025e-3
+Nmol = 600
