@@ -3,14 +3,14 @@ import numpy as np
 from copy import deepcopy
 class Trajectory_SSHmodel():
 
-    def __init__(self,Nmol,Xj,Vj,hbar,seed=None):
+    def __init__(self,Nmol,hbar,seed=None):
         self.Nmol = Nmol
         self.Hmol = np.zeros((Nmol,Nmol),complex)
         self.Hmol_dt = np.zeros((Nmol,Nmol),complex)
         self.Cj = np.zeros((Nmol,1),complex)
-        self.Xj = Xj#position
+        # self.Xj = Xj#position
         self.X_past = np.zeros(Nmol) # 2023_4_18, using to store x(t-dt) for verlet algorithm
-        self.Vj = Vj
+        # self.Vj = Vj
         self.hbar = hbar
         #velocity
         self.Rj = np.array(range(Nmol)) +1
@@ -43,14 +43,14 @@ class Trajectory_SSHmodel():
         self.mass = mass
         self.Kconst = Kconst
 
-        # self.Xj = np.random.normal(0.0, np.sqrt(kBT/(self.Kconst)), self.Nmol)#0.836 is conversion from amu*A^2*ps^-2 to cm-1
-        # self.Vj = np.random.normal(0.0, np.sqrt(kBT/(self.mass)),   self.Nmol)
+        self.Xj = np.random.normal(0.0, np.sqrt(kBT/(self.Kconst)), self.Nmol)#0.836 is conversion from amu*A^2*ps^-2 to cm-1
+        self.Vj = np.random.normal(0.0, np.sqrt(kBT/(self.mass)),   self.Nmol)
 
     def initialState(self,hbar,kBT,most_prob=False):
         """
         Choose the initial state from the set of eigenfunctions based on Boltzman distribution exp(-E_n/kBT)
         """
-        W,U = np.linalg.eigh(self.Hmol)
+        W,U = np.linalg.eig(self.Hmol)
         #idx = W.argsort()[::-1]   
         idx = W.argsort()[:]
         W = W[idx]
@@ -70,10 +70,15 @@ class Trajectory_SSHmodel():
         # print(rand, Prob_cum[initial_state],Prob_cum[initial_state+1])
         if most_prob:   
             initial_state = np.argmax(self.Prob) # most probable state
-        initial_state = int(0-1)
+        initial_state = int(1-1)
         # self.Cj = U[:,initial_state]
         self.Cj = U[:,initial_state]
         self.Prob = self.Prob[initial_state]
+    
+    def initialstate_equal(self):
+        self.Cj = np.ones(self.Nmol)/np.sqrt(self.Nmol)
+        # self.Cj = np.zeros(self.Nmol)
+        # self.Cj[0] = 1.0
 
         # var_list = []
         # for i in range(self.Nmol):
@@ -85,6 +90,9 @@ class Trajectory_SSHmodel():
     
     def old_Aj(self,Ehrenfest=True):  #calculate a(t). update on 2023_4_18
         Aj = -self.Kconst/self.mass * self.Xj
+        # print('This is Aj without Ehrenfest')
+        # print(Aj)
+        
         if Ehrenfest:
             for j in range(1,self.Nmol-1):
                 Aj[j] = Aj[j] -self.dynamicCoup/(self.mass)* \
@@ -96,7 +104,10 @@ class Trajectory_SSHmodel():
             Aj[-1] = Aj[-1] -self.dynamicCoup/(self.mass)* \
                         ( 2*np.real(np.conj(self.Cj[-1])*self.Cj[-2]) \
                         - 2*np.real(np.conj(self.Cj[-1])*self.Cj[0]))
+        # print('This is Aj with Ehrenfest')
+        # print(Aj)
         self.accelerate = Aj
+        # print('this is sum of Ehrenfest:',np.sum(Aj+self.Kconst*self.Xj/self.mass))
         
     def Verlet(self,dt,initial=True): # x(n+1) = 2x(n) - x(n-1) + a(n)*dt^2
         #self.old_Aj()
@@ -112,6 +123,22 @@ class Trajectory_SSHmodel():
             
             self.Vj = (self.Xj - self.X_past)/(2*dt)
             self.X_past = b
+            
+    def Newton(self,dt,Ehrenfest=True):
+        self.Xj = self.Xj + self.Vj*dt #+ 0.5*dt**2*self.accelerate
+        Aj = -self.Kconst/self.mass * self.Xj
+        if Ehrenfest:
+            for j in range(1,self.Nmol-1):
+                Aj[j] = Aj[j] -self.dynamicCoup/(self.mass)* \
+                        ( 2*np.real(np.conj(self.Cj[j])*self.Cj[j-1]) \
+                        - 2*np.real(np.conj(self.Cj[j])*self.Cj[j+1]))
+            Aj[0] = Aj[0] -self.dynamicCoup/(self.mass)* \
+                    ( 2*np.real(np.conj(self.Cj[0])*self.Cj[-1]) \
+                    - 2*np.real(np.conj(self.Cj[0])*self.Cj[1]))
+            Aj[-1] = Aj[-1] -self.dynamicCoup/(self.mass)* \
+                        ( 2*np.real(np.conj(self.Cj[-1])*self.Cj[-2]) \
+                        - 2*np.real(np.conj(self.Cj[-1])*self.Cj[0]))
+        self.Vj = self.Vj + dt*(Aj)
     def velocityVerlet(self,dt,Ehrenfest=True):
         """
         We use the algorithm with eliminating the half-step velocity
@@ -205,9 +232,13 @@ class Trajectory_SSHmodel():
 
 
     def propagateCj(self,dt):
+        # print('This is Cj before propogation',self.Cj)
+        # print('This is norm of Cj before propogation:',np.sum(np.abs(self.Cj)**2))
         self.Cj = self.Cj - 1j*dt*np.dot(self.Hmol,self.Cj)/self.hbar \
                   -0.5*dt**2*np.dot(self.Hmol,np.dot(self.Hmol,self.Cj))/self.hbar**2 \
-                  -0.5*1j*dt**2*np.dot(self.Hmol_dt,self.Cj)/self.hbar**2
+                  -0.5*1j*dt**2*np.dot(self.Hmol_dt,self.Cj)/self.hbar
+        # print('This is Cj after propogation',self.Cj)
+        # print('This is norm of Cj after propogation:',np.sum(np.abs(self.Cj)**2))
 
     
     def shift_Rj(self):

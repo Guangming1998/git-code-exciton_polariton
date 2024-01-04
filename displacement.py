@@ -1,10 +1,23 @@
 import sys
 import numpy as np
 import pandas as pd
+import os # try to use 'os' module to create new file directory for output files.
 from trajectory import Trajectory_SSHmodel
 path = sys.argv[-1].replace('displacement.py','')
+'check my path'
+# print(path)
 
+directory_names = ['csv_output','dat_output']
 
+try:
+    for directory_name in directory_names:
+        try:
+            os.makedirs(directory_name)
+        except FileExistsError:
+            print(f"Error: '{directory_name}' already exists")
+
+except :
+    print("Error occure while creating the directories.")
 plotResult = False
 printOutput = False
 if '--print' in sys.argv:
@@ -22,39 +35,42 @@ wavenumber_to_au = 4.55634e-6 # energy from wavenumber to atomic unit
 Adot_to_au = 1.88973 #angstrom to atomic length
 wavenumber_to_amuAps = 2180.66
 hbar_to_amuAps = 1.1577e4
+wavenumber_to_amuAps = 2180.66
 if 'param.in' in path:
     exec(open('param.in').read())
-    atomic_unit = True
+    # atomic_unit = True
     
-    if atomic_unit:
-        staticCoup = 300 *wavenumber_to_au
-        dynamicCoup = 995/Adot_to_au * wavenumber_to_au
-        kBT = 104.3*wavenumber_to_au
-        mass = 100
-        Kconst = 14500/(ps_to_au**2)
-        hbar = 1
-        dt = 0.025e-3*ps_to_au
-    else: #"use amu*A^2*ps^-2 unit"
-        staticCoup = 300 *wavenumber_to_amuAps
-        dynamicCoup = 995 * wavenumber_to_amuAps
-        kBT = 104.3*wavenumber_to_amuAps
-        mass = 100
-        Kconst = 14500
-        hbar = 1*hbar_to_amuAps
-        dt = 0.025e-3
+    # if atomic_unit:
+    #     staticCoup = 300 *wavenumber_to_au
+    #     dynamicCoup = 995/Adot_to_au * wavenumber_to_au
+    #     kBT = 104.3*wavenumber_to_au
+    #     mass = 100
+    #     Kconst = 14500/(ps_to_au**2)
+    #     hbar = 1
+    #     dt = 0.025e-3*ps_to_au
+    # else: #"use amu*A^2*ps^-2 unit"
+    #     staticCoup = 300 *wavenumber_to_amuAps
+    #     dynamicCoup = 995 * wavenumber_to_amuAps
+    #     kBT = 104.3*wavenumber_to_amuAps
+    #     mass = 100
+    #     Kconst = 14500
+    #     hbar = 1*hbar_to_amuAps
+    #     dt = 0.025e-3
 else:
-    atomic_unit = True
-    ps_to_au = 4.13414e4 # ps to atomic time
-    wavenumber_to_au = 4.55634e-6 # energy from wavenumber to atomic unit
-    Adot_to_au = 1.88973 #angstrom to atomic length
+    Ehrenfest = True # define a bool variable for Ehrenfest force switch
+    atomic_unit = True #define a bool variable for atomic unit switch
+    Runge_Kutta = False # define a bool variable for switch from velocity verlet to Runge Kutta.
+    # ps_to_au = 4.13414e4 # ps to atomic time
+    # wavenumber_to_au = 4.55634e-6 # energy from wavenumber to atomic unit
+    # Adot_to_au = 1.88973 #angstrom to atomic length
     # dt = 1#0.025e-3*ps_to_au
-    Ntimes = 6000*2
+    Ntimes = 6000
     Nskip = 10
-    wavenumber_to_amuAps = 2180.66
-    hbar_to_amuAps = 1.1577e4
+    
+    # hbar_to_amuAps = 1.1577e4
     
     #conversion 
-    Nmol = 600
+    Nmol = 300
     if atomic_unit:
         staticCoup = 300 *wavenumber_to_au
         dynamicCoup = 995/Adot_to_au * wavenumber_to_au
@@ -94,16 +110,18 @@ else:
     # TauDD = 0.0
 
     
-data = pd.read_csv(path+'XV_100_600.csv',index_col=False)
-Xj = pd.DataFrame(data,columns=['Xj']).to_numpy(dtype=float).flatten()
-Vj = pd.DataFrame(data,columns=['Vj']).to_numpy(dtype=float).flatten()
-model1 = Trajectory_SSHmodel(Nmol,Xj,Vj)
-
+# data = pd.read_csv(path+'XV_100_600.csv',index_col=False)
+# Xj = pd.DataFrame(data,columns=['Xj']).to_numpy(dtype=float).flatten()
+# Vj = pd.DataFrame(data,columns=['Vj']).to_numpy(dtype=float).flatten()
+model1 = Trajectory_SSHmodel(Nmol,hbar)
+'check if param.in valids'
+# print(model1.Nmol)
 model1.initialGaussian(kBT,mass,Kconst)
 model1.initialHamiltonian(staticCoup,dynamicCoup)
 
 
 model1.initialState(hbar,kBT,most_prob=False)
+# model1.initialstate_equal()
 
 model1.shift_Rj()
 # plt.plot(model1.Cj)
@@ -135,15 +153,44 @@ CurrentCorrelation_list = [model1.getCurrentCorrelation()[1]]
 Prob_list = [model1.Prob]
 Cj_list =[np.sum(np.abs(model1.Cj.T)**2)]
 
-def velocity_verlet():
+'calculate for energy conservation in Ehrenfest'
+# sum_KXjVj,sum_mVjAj = [],[]
+sum_dHel_dt = []
+sum_dHnuc_dt = []
+sum_dH_dt = []
+
+'check the position and velocity of first site'
+# Xj_0,Vj_0 = [],[]
+
+def dynamics():
     for it in range(Ntimes):
+        # print(it)
+        print('This is energy before update Hmol:',model1.getEnergy())
         model1.updateHmol()
-        model1.old_Aj()
-        for i in range(10):
-            model1.propagateCj(dt*0.1)
-        model1.propagateJ0Cj_RK4(dt)
+        model1.old_Aj(Ehrenfest)
+        if Runge_Kutta:
+            model1.RK4(dt)
         
-        model1.velocityVerlet(dt)
+        else:
+            #for i in range(10):
+            old_energy = np.array(model1.getEnergy())
+            print('This is energy:',model1.getEnergy())
+            # print((model1.Xj[1]-model1.Xj[0])*model1.dynamicCoup)
+            # print(((model1.Xj[1]-model1.Xj[0])*model1.dynamicCoup+model1.getEnergy()[0])/model1.getEnergy()[0])
+            # model1.propagateCj(dt)
+                
+            
+            model1.velocityVerlet(dt,Ehrenfest)
+            model1.updateHmol()
+            for i in range(10):
+                model1.propagateCj(dt*0.1)
+            # model1.Newton(dt)
+            print('this is energy difference:',np.array(model1.getEnergy())-old_energy)
+            
+            
+        # model1.propagateJ0Cj_RK4(dt)
+        
+        
         
         if it%Nskip ==0:
             times_1.append( it*dt )
@@ -154,26 +201,19 @@ def velocity_verlet():
             energy_elec.append(model1.getEnergy()[0])
             energy_vib.append(model1.getEnergy()[1])
             
+            'energy conservation part'
+            sum_dHel_dt.append(np.real(np.einsum('i,i',np.conjugate(model1.Cj),np.einsum('ij,j',model1.Hmol_dt,model1.Cj))))
+            sum_dHnuc_dt.append (np.einsum('i,i',model1.Vj,model1.accelerate)*mass + np.einsum('i,i',model1.Xj,model1.Vj)*Kconst)
+            sum_dH_dt.append(np.einsum('i,i',model1.Vj,model1.accelerate)*mass + np.einsum('i,i',model1.Xj,model1.Vj)*Kconst + 
+                                 np.real(np.einsum('i,i',np.conjugate(model1.Cj),np.einsum('ij,j',model1.Hmol_dt,model1.Cj))))
+            print(sum_dHel_dt[0]*dt)
+            'position and velocity of first site'
+            # Xj_0.append(model1.Xj[0]),Vj_0.append(model1.Vj[0])
+            
             
 
-def verlet():
-    for it in range(Ntimes):
-        model1.updateHmol()
-        model1.old_Aj()
-        for i in range(10):
-            model1.propagateCj(dt*0.1)
-        
-        model1.Verlet(dt)
-        
-        # model1.velocityVerlet(dt)
-        
-        if it%Nskip ==0:
-            times_1.append( it*dt )
-            
-            Displacement_list_1.append(model1.getDisplacement())
-            
 
-velocity_verlet()
+dynamics()
 # verlet()
 
 if not plotResult:
@@ -187,10 +227,20 @@ if not plotResult:
     dici_2 = {"Probability":Prob_list}
     data_2 = pd.DataFrame(dici_2)
     
-    data.to_csv('Displacement_250_600.csv')
-    data_1.to_csv('CurrentCorrelation_250_600.csv')
-    data_2.to_csv('Probability.csv')
+    'store the energy conservation file'
+    dici_3 = {"dHel_dt":sum_dHel_dt,"dHnuc_dt":sum_dHnuc_dt,"dH_dt":sum_dH_dt}
+    data_3 = pd.DataFrame(dici_3)
     
+    'position and velocity of first site'
+    # dici_XV = {'Xj_0':Xj_0,'Vj_0':Vj_0}
+    # data_XV = pd.DataFrame(dici_XV)
+    
+    'Here I create a new directory to store the output .csv files'
+    data.to_csv('csv_output/'+'Displacement_250_600.csv')
+    data_1.to_csv('csv_output/'+'CurrentCorrelation_250_600.csv')
+    data_2.to_csv('csv_output/'+'Probability.csv')
+    data_3.to_csv('csv_output/'+'Econservation.csv')
+    # data_XV.to_csv('csv_output/'+'XV.csv')
 
     fdis = open('Displacement_250_600.dat'+sys.argv[-1], 'w')
     fdis_1 = open('CurrentCorrelation_250_600.dat'+sys.argv[-1], 'w')
