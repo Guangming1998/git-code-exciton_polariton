@@ -41,6 +41,16 @@ class Trajectory_SSHmodel():
         
         self.Jt0 = Jmol
         
+    def polarization_operator(self):
+        self.Polar =np.eye(self.Nmol,dtype=complex)
+        for i in range(self.Nmol):
+            self.Polar[i][i] = i+1
+        
+    
+    def Current_operator(self):
+        J = -1j*(np.dot(self.Polar,self.Hmol) - np.dot(self.Hmol,self.Polar))
+        return J
+    
     
     def initialHamiltonianCavity(self,couplingStrength,cavityFrequency):
         self.couplingStrength = couplingStrength
