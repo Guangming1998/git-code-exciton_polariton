@@ -213,11 +213,54 @@ class Trajectory_SSHmodel():
         kv4 = self.v_dot(self.Xj+dt*kx3,self.Cj+dt*kc3,Ehrenfest)
         kc4 = self.Cj_dot(self.Xj+dt*kx3,self.Cj+dt*kc3)
         
-        self.Xj += self.Xj +dt*(kx1+2*kx2+2*kx3+kx4)/6
-        self.Vj += self.Vj +dt*(kv1+2*kv2+2*kv3+kv4)/6
-        self.Cj += self.Cj +dt*(kc1+2*kc2+2*kc3+kc4)/6
+        self.Xj +=  dt*(kx1+2*kx2+2*kx3+kx4)/6
+        self.Vj +=  dt*(kv1+2*kv2+2*kv3+kv4)/6
+        self.Cj +=  dt*(kc1+2*kc2+2*kc3+kc4)/6
         
+    def v_dot_shiqiang(self,Xj,Cj):
+        Aj = np.zeros(self.Nmol)
+        for i in range(1,self.Nmol-1):
+            Aj[i] = (-self.Kconst*Xj[i] + self.dynamicCoup*(2*np.real(np.conj(Cj[i+1])*Cj[i])
+                                                            -2*np.real(np.conj(Cj[i])*Cj[i-1])) )/self.mass
+        Aj[0] = (-self.Kconst*Xj[0] + self.dynamicCoup*(2*np.real(np.conj(Cj[0])*Cj[1])
+                                                            -2*np.real(np.conj(Cj[0])*Cj[-1])) )/self.mass
+        Aj[-1] = (-self.Kconst*Xj[-1] + self.dynamicCoup*(2*np.real(np.conj(Cj[-1])*Cj[0])
+                                                            -2*np.real(np.conj(Cj[-1])*Cj[-2])) )/self.mass
+        return Aj
+    
+    def Cj_dot_shiqiang(self,Xj,Cj):
+        C = np.zeros(self.Nmol,complex)
+        for i in range(1,self.Nmol-1):
+            C[i] = -1j * (-self.staticCoup*(Cj[i+1]+Cj[i-1]) + self.dynamicCoup*((Xj[i]-Xj[i-1])*Cj[i-1] 
+                                                                           +(Xj[i+1]-Xj[i])*Cj[i+1]))/self.hbar
+            
+        C[0] = -1j * (-self.staticCoup*(Cj[1]+Cj[-1]) + self.dynamicCoup*((Xj[0]-Xj[-1])*Cj[-1] 
+                                                                           +(Xj[1]-Xj[0])*Cj[1]))/self.hbar
+        C[-1] = -1j * (-self.staticCoup*(Cj[0]+Cj[-2]) + self.dynamicCoup*((Xj[-1]-Xj[-2])*Cj[-2] 
+                                                                           +(Xj[0]-Xj[-1])*Cj[0]))/self.hbar
+        return C
+    
+    def RK4_shiqiang(self,dt):
+        kx1 = self.x_dot(self.Vj)
+        kv1 = self.v_dot_shiqiang(self.Xj,self.Cj)
+        kc1 = self.Cj_dot_shiqiang(self.Xj,self.Cj)
         
+        kx2 = self.x_dot(self.Vj + 0.5*dt*kv1)
+        kv2 = self.v_dot_shiqiang(self.Xj+0.5*dt*kx1, self.Cj+0.5*dt*kc1)
+        kc2 = self.Cj_dot_shiqiang(self.Xj+0.5*dt*kx1, self.Cj+0.5*dt*kc1)
+        
+        kx3 = self.x_dot(self.Vj + 0.5*dt*kv2)
+        kv3 = self.v_dot_shiqiang(self.Xj+0.5*dt*kx2, self.Cj+0.5*dt*kc2)
+        kc3 = self.Cj_dot_shiqiang(self.Xj+0.5*dt*kx2, self.Cj+0.5*dt*kc2)
+        
+        kx4 = self.x_dot(self.Vj + dt*kv3)
+        kv4 = self.v_dot_shiqiang(self.Xj+ dt*kx3, self.Cj+dt*kc3)
+        kc4 = self.Cj_dot_shiqiang(self.Xj+dt*kx3, self.Cj+dt*kc3)
+        
+        self.Xj += dt*(kx1 + 2*kx2 + 2*kx3 + kx4)/6
+        self.Vj += dt*(kv1 + 2*kv2 + 2*kv3 + kv4)/6
+        self.Cj += dt*(kc1 + 2*kc2 + 2*kc3 + kc4)/6
+    
     def updateHmol(self):
         for j in range(self.Nmol-1):
             self.Hmol[j,j+1] = -self.staticCoup + self.dynamicCoup * (self.Xj[j+1]-self.Xj[j])
