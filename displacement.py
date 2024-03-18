@@ -35,7 +35,8 @@ wavenumber_to_au = 4.55634e-6 # energy from wavenumber to atomic unit
 Adot_to_au = 1.88973 #angstrom to atomic length
 wavenumber_to_amuAps = 2180.66
 hbar_to_amuAps = 1.1577e4
-wavenumber_to_amuAps = 2180.66
+amu_to_auMass = 1822.88 #amu is Dalton mass!
+
 if 'param.in' in path:
     exec(open('param.in').read())
     # atomic_unit = True
@@ -59,12 +60,12 @@ if 'param.in' in path:
 else:
     Ehrenfest = True # define a bool variable for Ehrenfest force switch
     atomic_unit = True #define a bool variable for atomic unit switch
-    Runge_Kutta = False # define a bool variable for switch from velocity verlet to Runge Kutta.
+    Runge_Kutta = True # define a bool variable for switch from velocity verlet to Runge Kutta.
     # ps_to_au = 4.13414e4 # ps to atomic time
     # wavenumber_to_au = 4.55634e-6 # energy from wavenumber to atomic unit
     # Adot_to_au = 1.88973 #angstrom to atomic length
     # dt = 1#0.025e-3*ps_to_au
-    Ntimes = 6000
+    Ntimes = 400000
     Nskip = 10
     
     # hbar_to_amuAps = 1.1577e4
@@ -75,8 +76,8 @@ else:
         staticCoup = 300 *wavenumber_to_au
         dynamicCoup = 995/Adot_to_au * wavenumber_to_au
         kBT = 104.3*wavenumber_to_au
-        mass = 100
-        Kconst = 14500/(ps_to_au**2)
+        mass = 250*amu_to_auMass
+        Kconst = 14500*amu_to_auMass/(ps_to_au**2)
         hbar = 1
         dt = 0.025e-3*ps_to_au
     else: #"use amu*A^2*ps^-2 unit"
@@ -110,6 +111,8 @@ else:
     # TauDD = 0.0
 
     
+# 'check temperature'
+# print(kBT)
 # data = pd.read_csv(path+'XV_100_600.csv',index_col=False)
 # Xj = pd.DataFrame(data,columns=['Xj']).to_numpy(dtype=float).flatten()
 # Vj = pd.DataFrame(data,columns=['Vj']).to_numpy(dtype=float).flatten()
@@ -165,33 +168,39 @@ sum_dH_dt = []
 def dynamics():
     for it in range(Ntimes):
         # print(it)
-        print('This is energy before update Hmol:',model1.getEnergy())
-        model1.updateHmol()
-        model1.old_Aj(Ehrenfest)
+        # print('This is energy before update Hmol:',model1.getEnergy())
+        # model1.updateHmol()
+        print('This is energy before dynamics:',model1.getEnergy())
+        old_energy = np.array(model1.getEnergy())
         if Runge_Kutta:
-            model1.RK4(dt)
+            model1.RK4(dt,Ehrenfest)
+            # for i in range(20):
+            #     model1.RK4(0.05*dt,Ehrenfest)
+            
         
         else:
             #for i in range(10):
-            old_energy = np.array(model1.getEnergy())
-            print('This is energy:',model1.getEnergy())
+            # old_energy = np.array(model1.getEnergy())
+            # print('This is energy:',model1.getEnergy())
             # print((model1.Xj[1]-model1.Xj[0])*model1.dynamicCoup)
             # print(((model1.Xj[1]-model1.Xj[0])*model1.dynamicCoup+model1.getEnergy()[0])/model1.getEnergy()[0])
             # model1.propagateCj(dt)
-                
-            
-            model1.velocityVerlet(dt,Ehrenfest)
-            model1.updateHmol()
+            model1.old_Aj(Ehrenfest)
             for i in range(10):
                 model1.propagateCj(dt*0.1)
+            model1.velocityVerlet(dt,Ehrenfest)
+            # model1.updateHmol()
+            
             # model1.Newton(dt)
-            print('this is energy difference:',np.array(model1.getEnergy())-old_energy)
+            # print('this is energy difference:',np.array(model1.getEnergy())-old_energy)
             
             
         # model1.propagateJ0Cj_RK4(dt)
         
-        
-        
+        model1.propagateJ0Cj_RK4(dt)
+        model1.updateHmol()
+        print('This is energy after dynamics:',model1.getEnergy())
+        print('this is energy difference:',np.array(model1.getEnergy())-old_energy)
         if it%Nskip ==0:
             times_1.append( it*dt )
             
@@ -202,11 +211,11 @@ def dynamics():
             energy_vib.append(model1.getEnergy()[1])
             
             'energy conservation part'
-            sum_dHel_dt.append(np.real(np.einsum('i,i',np.conjugate(model1.Cj),np.einsum('ij,j',model1.Hmol_dt,model1.Cj))))
-            sum_dHnuc_dt.append (np.einsum('i,i',model1.Vj,model1.accelerate)*mass + np.einsum('i,i',model1.Xj,model1.Vj)*Kconst)
-            sum_dH_dt.append(np.einsum('i,i',model1.Vj,model1.accelerate)*mass + np.einsum('i,i',model1.Xj,model1.Vj)*Kconst + 
-                                 np.real(np.einsum('i,i',np.conjugate(model1.Cj),np.einsum('ij,j',model1.Hmol_dt,model1.Cj))))
-            print(sum_dHel_dt[0]*dt)
+            # sum_dHel_dt.append(np.real(np.einsum('i,i',np.conjugate(model1.Cj),np.einsum('ij,j',model1.Hmol_dt,model1.Cj))))
+            # sum_dHnuc_dt.append (np.einsum('i,i',model1.Vj,model1.accelerate)*mass + np.einsum('i,i',model1.Xj,model1.Vj)*Kconst)
+            # sum_dH_dt.append(np.einsum('i,i',model1.Vj,model1.accelerate)*mass + np.einsum('i,i',model1.Xj,model1.Vj)*Kconst + 
+                                #  np.real(np.einsum('i,i',np.conjugate(model1.Cj),np.einsum('ij,j',model1.Hmol_dt,model1.Cj))))
+            # print(sum_dHel_dt[0]*dt)
             'position and velocity of first site'
             # Xj_0.append(model1.Xj[0]),Vj_0.append(model1.Vj[0])
             
@@ -227,9 +236,9 @@ if not plotResult:
     dici_2 = {"Probability":Prob_list}
     data_2 = pd.DataFrame(dici_2)
     
-    'store the energy conservation file'
-    dici_3 = {"dHel_dt":sum_dHel_dt,"dHnuc_dt":sum_dHnuc_dt,"dH_dt":sum_dH_dt}
-    data_3 = pd.DataFrame(dici_3)
+    # 'store the energy conservation file'
+    # dici_3 = {"dHel_dt":sum_dHel_dt,"dHnuc_dt":sum_dHnuc_dt,"dH_dt":sum_dH_dt}
+    # data_3 = pd.DataFrame(dici_3)
     
     'position and velocity of first site'
     # dici_XV = {'Xj_0':Xj_0,'Vj_0':Vj_0}
@@ -239,7 +248,7 @@ if not plotResult:
     data.to_csv('csv_output/'+'Displacement_250_600.csv')
     data_1.to_csv('csv_output/'+'CurrentCorrelation_250_600.csv')
     data_2.to_csv('csv_output/'+'Probability.csv')
-    data_3.to_csv('csv_output/'+'Econservation.csv')
+    # data_3.to_csv('csv_output/'+'Econservation.csv')
     # data_XV.to_csv('csv_output/'+'XV.csv')
 
     fdis = open('Displacement_250_600.dat'+sys.argv[-1], 'w')
