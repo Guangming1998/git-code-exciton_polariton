@@ -71,7 +71,7 @@ else:
     # hbar_to_amuAps = 1.1577e4
     
     #conversion 
-    Nmol = 300
+    Nmol = 5
     
     if atomic_unit:
         staticCoup = 300 *wavenumber_to_au
@@ -129,8 +129,17 @@ model1.initialHamiltonianCavity(couplingstrength,cavityFrequency)
 model1.initialState(hbar,kBT,most_prob=False)
 # model1.initialstate_equal()
 # print(model1.Htot)
-eigen_energy = model1.eigenvalue()
-model1.shift_Rj()
+# eigen_energy = model1.eigenvalue()
+'check if the derivation of current operator is correct or not. Result shows that derivation is correct'
+# model1.polarization_operator()
+# J = model1.Current_operator()
+# model1.shift_Rj()
 
-plt.hist(eigen_energy*27.2)
-plt.show()
+# print(model1.Jt0)
+# print(J)
+# print((np.dot(model1.Hmol,model1.Jt0)-np.dot(model1.Jt0,model1.Hmol)))
+# print((np.dot(model1.Hmol,J)-np.dot(J,model1.Hmol)))
+
+# plt.hist(eigen_energy*27.2)
+# plt.show()
+
