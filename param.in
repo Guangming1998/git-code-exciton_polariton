@@ -9,11 +9,11 @@ Nskip = 1
 
 
 if atomic_unit:
-    staticCoup = 0*300 *wavenumber_to_au
+    staticCoup = 300 *wavenumber_to_au
     dynamicCoup = 995/Adot_to_au * wavenumber_to_au
     kBT = 104.3*wavenumber_to_au
-    mass = 100
-    Kconst = 14500/(ps_to_au**2)
+    mass = 100*amu_to_auMass
+    Kconst = 14500*amu_to_auMass/(ps_to_au**2)
     hbar = 1
     dt = 0.025e-3*ps_to_au
     #dt = 1
