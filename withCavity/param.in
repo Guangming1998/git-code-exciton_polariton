@@ -1,0 +1,28 @@
+### parameter file
+Ehrenfest = True
+atomic_unit = True
+Runge_Kutta = False
+Nmol = 20
+
+Ntimes = 5000
+Nskip = 1
+
+
+if atomic_unit:
+    staticCoup = 300 *wavenumber_to_au
+    dynamicCoup = 995/Adot_to_au * wavenumber_to_au
+    kBT = 104.3*wavenumber_to_au
+    mass = 100*amu_to_auMass
+    Kconst = 14500*amu_to_auMass/(ps_to_au**2)
+    hbar = 1
+    dt = 0.025e-3*ps_to_au
+    #dt = 1
+else: #"use amu*A^2*ps^-2 unit"
+    staticCoup = 300 *wavenumber_to_amuAps
+    dynamicCoup = 995 * wavenumber_to_amuAps
+    kBT = 104.3*wavenumber_to_amuAps
+    mass = 100
+    Kconst = 14500
+    hbar = 1*hbar_to_amuAps
+    dt = 0.025e-3
+
