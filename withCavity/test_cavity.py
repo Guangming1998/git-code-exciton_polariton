@@ -74,15 +74,15 @@ else:
     Nmol = 5
     
     if atomic_unit:
-        staticCoup = 300 *wavenumber_to_au
+        staticCoup = 2 #300 *wavenumber_to_au
         dynamicCoup = 0*995/Adot_to_au * wavenumber_to_au
         kBT = 104.3*wavenumber_to_au
         mass = 250*amu_to_auMass
         Kconst = 14500*amu_to_auMass/(ps_to_au**2)
         hbar = 1
         dt = 0.025e-3*ps_to_au
-        couplingstrength = 50 *wavenumber_to_au
-        cavityFrequency = 1500*wavenumber_to_au
+        couplingstrength = 2#50 *wavenumber_to_au
+        cavityFrequency = 1#1500*wavenumber_to_au
     else: #"use amu*A^2*ps^-2 unit"
         staticCoup = 300 *wavenumber_to_amuAps
         dynamicCoup = 995 * wavenumber_to_amuAps
@@ -142,4 +142,16 @@ model1.initialState(hbar,kBT,most_prob=False)
 
 # plt.hist(eigen_energy*27.2)
 # plt.show()
+'check current operator Jmol_0 and Jcav_0. result is correct'
+# print(model1.Jmol_0)
+# print(model1.Jcav_0)
+
+'check commutator'
+# print(model1.Hint)
+print(np.dot(model1.Jmol_0,model1.Hint)-np.dot(model1.Hint,model1.Jmol_0))
+
+# print(np.dot(model1.Jtot_0,model1.Htot)-np.dot(model1.Htot,model1.Jtot_0))
+print(model1.Htot)
+# print(np.dot(model1.Jcav_0,model1.Hint)-np.dot(model1.Hint,model1.Jcav_0))
+# print(np.dot(model1.Jcav_0,model1.Hint)-np.dot(model1.Hint,model1.Jcav_0))
 
