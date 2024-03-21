@@ -54,13 +54,25 @@ class Trajectory_SSHmodel():
     
     def initialHamiltonianCavity(self,couplingStrength,cavityFrequency):
         self.couplingStrength = couplingStrength
+        matrix_Jcav = np.zeros((self.Nmol,1),dtype=complex)
         for i in range(self.Nmol):
             self.Hcoupling[i,0] = self.couplingStrength
+            matrix_Jcav[i,0] = self.couplingStrength * (i+1)
         self.Hcav[0,0] = cavityFrequency
         
         self.Htot = np.vstack((np.hstack((self.Hmol, self.Hcoupling)),
                               np.hstack((self.Hcoupling.T, self.Hcav))))
         
+        self.Hint = np.vstack((np.hstack((np.zeros((self.Nmol,self.Nmol),dtype=complex), self.Hcoupling)),
+                              np.hstack((self.Hcoupling.T, np.zeros((1,1),dtype=complex)))))
+        
+        self.Jmol_0 = np.vstack((np.hstack((self.Jt0, np.zeros((self.Nmol,1),dtype=complex))),
+                              np.hstack((np.zeros((1,self.Nmol),dtype=complex), np.zeros((1,1),dtype=complex)))))
+        
+        self.Jcav_0 = np.vstack((np.hstack((np.zeros((self.Nmol,self.Nmol),dtype=complex), matrix_Jcav)),
+                              np.hstack((-matrix_Jcav.T, np.zeros((1,1),dtype=complex)))))
+        
+        self.Jtot_0 = self.Jmol_0 + self.Jcav_0
         
     def eigenvalue(self):
         W,V = np.linalg.eigh(self.Htot)
