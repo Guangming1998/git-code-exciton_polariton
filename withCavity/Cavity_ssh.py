@@ -40,7 +40,7 @@ class Trajectory_SSHmodel():
         Jmol[-1,0] = -1j*self.Hmol[-1,0]
         
         self.Jt0 = Jmol
-        
+        self.Jt_t = Jmol
     def polarization_operator(self):
         self.Polar =np.eye(self.Nmol,dtype=complex)
         for i in range(self.Nmol):
@@ -131,10 +131,41 @@ class Trajectory_SSHmodel():
         idx = W.argsort()[:]
         W = W[idx]
         U = U[:,idx]
+        # print('this is eigenvalue from static:',W)
+        # print('this is eigenvector from static:',U)
         
         self.Evalue = W
         self.Evec = U
         
+    def initialCj_disorder_trajectory(self,kBT):
+        Hmol = self.Hmol
+        W, U = np.linalg.eigh(Hmol)
+        
+        idx = W.argsort()[:]
+        W = W[idx]
+        U = U[:,idx]
+        # print('this is eigenvalue from dynamic:',W)
+        # print('this is eigenvector from dynamic:',U)
+        Prob = np.exp(-W*self.hbar/kBT)
+        self.Prob = Prob/np.sum(Prob)
+        
+        self.Cj = U
+    
+    def initial_densityMatrix(self,kBT): # not necessary here
+        Hmol = self.Hmol
+        W, U = np.linalg.eigh(Hmol)
+        
+        idx = W.argsort()[:]
+        W = W[idx]
+        U = U[:,idx]
+        
+        Prob = np.exp(-W*self.hbar/kBT)
+        Prob = Prob/np.sum(Prob)
+        
+        for i in range(self.Nmol):
+            U[:,i] = U[:,i]*Prob[i]
+        
+        self.DM = U
     def initialCj_Hmolcav(self):
         Hmolcav = np.zeros(1)
     
@@ -324,6 +355,33 @@ class Trajectory_SSHmodel():
         self.Vj += dt*(kv1 + 2*kv2 + 2*kv3 + kv4)/6
         self.Cj += dt*(kc1 + 2*kc2 + 2*kc3 + kc4)/6
     
+    def RK4_densityMatrix(self,dt):
+        k1 = -1j*np.dot(self.Hmol,self.DM)
+        k2 = -1j*np.dot(self.Hmol,self.DM + dt*k1/2)
+        k3 = -1j*np.dot(self.Hmol,self.DM + dt*k2/2)
+        k4 = -1j*np.dot(self.Hmol,self.DM + dt*k3)
+        
+        self.DM += (k1 + 2*k2 + 2*k3 + k4)*dt/6
+        
+    def RK4_Jmol(self,dt):
+        
+        k1 = -1j*np.dot(self.Hmol,self.Jt_t)
+        k2 = -1j*np.dot(self.Hmol,self.Jt_t + dt*k1/2)
+        k3 = -1j*np.dot(self.Hmol,self.Jt_t + dt*k2/2)
+        k4 = -1j*np.dot(self.Hmol,self.Jt_t + dt*k3)
+        
+        self.Jt_t += (k1 + 2*k2 + 2*k3 + k4)*dt/6
+    
+    def RK4_Cj_trajectory(self,dt,Cj):
+        
+        k1 = -1j*np.dot(self.Hmol,Cj)
+        k2 = -1j*np.dot(self.Hmol,Cj + dt*k1/2)
+        k3 = -1j*np.dot(self.Hmol,Cj + dt*k2/2)
+        k4 = -1j*np.dot(self.Hmol,Cj + dt*k3)
+        
+        Cj += (k1 + 2*k2 + 2*k3 + k4)*dt/6
+        
+        return Cj
     def updateHmol(self):
         for j in range(self.Nmol-1):
             self.Hmol[j,j+1] = -self.staticCoup + self.dynamicCoup * (self.Xj[j+1]-self.Xj[j])
@@ -396,8 +454,9 @@ class Trajectory_SSHmodel():
         
         CJJ_avg = np.zeros(Ntimes,complex)
         Partition = 0.0
-        CJJ_analytical = np.zeros(Ntimes,complex)
+        # CJJ_analytical = np.zeros(Ntimes,complex)
         for k in range(Nsize):
+            CJJ_analytical = np.zeros(Ntimes,complex)
             for l in range(Nsize):
                 CJJ_analytical = CJJ_analytical + np.exp(1j* (self.Evalue[k]-self.Evalue[l])* times) * np.abs(J0kl[k,l])**2
             
@@ -405,6 +464,44 @@ class Trajectory_SSHmodel():
             Partition = Partition + np.exp(-self.Evalue[k]/kBT)
         CJJ_avg = CJJ_avg / Partition  #ensemble average
         
+        return CJJ_avg
+    
+    def getCurrentCorrelation_DM(self):
+        
+        CJJ = np.trace(np.dot(self.DM,np.dot(self.Jt_t,self.Jt0)))
+        return CJJ
+        
+    
+    def getCurrentCorrelation_disorder_trajectory(self,Cj,J0Cj):
+        self.Imol = 0
+        
+            # self.Jt = deepcopy(self.Ht)
+        self.Jt = np.zeros_like(self.Hmol)
+        for j in range(self.Nmol-1): 
+            self.Jt[self.Imol+j,   self.Imol+j+1] = -self.Hmol[self.Imol+j,   self.Imol+j+1]*1j
+            self.Jt[self.Imol+j+1, self.Imol+j]   = self.Hmol[self.Imol+j+1, self.Imol+j]*1j   
+        
+        self.Jt[self.Imol,self.Imol+self.Nmol-1] = self.Hmol[self.Imol,self.Imol+self.Nmol-1]*1j
+        self.Jt[self.Imol+self.Nmol-1,self.Imol] = -self.Hmol[self.Imol+self.Nmol-1,self.Imol]*1j 
+            # Here Cj is at time t
+            # self.JtCj = np.dot(self.Jt,self.Cj)
+        #first step only 
+            # self.J0Cj = np.dot(self.Jt0,Cj) 
+            # self.Jt = deepcopy(self.Jt0)
+
+        CJJ = np.dot(np.conj(Cj).T,np.dot(self.Jt,J0Cj))
+        # Javg = np.dot(np.conj(Cj).T,np.dot(self.Jt,self.Cj))
+        return CJJ
+    def propagateJ0Cj_RK4_trajectory(self,dt,J0Cj):
+        ### RK4 propagation 
+        K1 = -1j*np.dot(self.Hmol,J0Cj)
+        K2 = -1j*np.dot(self.Hmol,J0Cj+dt*K1/2)
+        K3 = -1j*np.dot(self.Hmol,J0Cj+dt*K2/2)
+        K4 = -1j*np.dot(self.Hmol,J0Cj+dt*K3)
+        
+        J0Cj += (K1+2*K2+2*K3+K4)*dt/6
+        return J0Cj
+    
     def propagateJ0Cj_RK4(self,dt):
         ### RK4 propagation 
         K1 = -1j*np.dot(self.Hmol,self.J0Cj)
