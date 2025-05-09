@@ -18,9 +18,38 @@ class Trajectory_SSHmodel():
         self.Rj = np.array(range(Nmol)) +1
         np.random.seed(seed)
 
-    def initialHamiltonian(self,staticCoup,dynamicCoup):    
+    def RK4_GFstate(self,dt):
+        Lorentzian_width = self.staticCoup/40
+        if not hasattr(self, 'Htot'):
+            k1 = -1j*np.dot(self.Hmol,self.GFstate)
+            k2 = -1j*np.dot(self.Hmol,self.GFstate + dt*k1/2)
+            k3 = -1j*np.dot(self.Hmol,self.GFstate + dt*k2/2)
+            k4 = -1j*np.dot(self.Hmol,self.GFstate + dt*k3)
+        else:
+            k1 = -1j*np.dot(self.Htot,self.GFstate)
+            k2 = -1j*np.dot(self.Htot,self.GFstate + dt*k1/2)
+            k3 = -1j*np.dot(self.Htot,self.GFstate + dt*k2/2)
+            k4 = -1j*np.dot(self.Htot,self.GFstate + dt*k3)
+        
+        self.GFstate += (k1 + 2*k2 + 2*k3 + k4)*dt/6 - Lorentzian_width*dt
+    
+    def initialGreenFunction(self):
+        Number_of_site = self. Nmol + 1 if hasattr(self, 'Htot') else self.Nmol # with Cavity mode
+        self.GFstate = np.eye(Number_of_site,dtype = complex) #initial single excited state for Green Function 
+        # GFstate is correct
+        m = np.arange(1, Number_of_site +1 )
+        # print(m.shape)
+        # print(self.GFstate.shape) 
+        waveVector = np.linspace(0, np.pi, 100).reshape(-1,1) #wave vector
+        
+        self.WaveVectorMatrix = np.hstack([np.exp(-1j * waveVector* m_val) for m_val in m])
+        # print(self.WaveVectorMatrix.shape)
+        self.kvector = np.linspace(0,np.pi, 100)
+
+    def initialHamiltonian(self,staticCoup,dynamicCoup,site_energy):    
         self.staticCoup = staticCoup
         self.dynamicCoup = dynamicCoup
+        self.Hmol = np.eye(self.Nmol) * site_energy
         Jmol = np.zeros((self.Nmol,self.Nmol),complex) #construct initial J operator. 2023/09/08
 
 
@@ -51,6 +80,11 @@ class Trajectory_SSHmodel():
         J = -1j*(np.dot(self.Polar,self.Hmol) - np.dot(self.Hmol,self.Polar))
         return J
     
+    def GreenFunction_timedomain(self):
+        GF_matrix = -1j* self.GFstate # Green function matrix
+        GF_matrix_wavevector = np.dot(np.conj(self.WaveVectorMatrix),np.dot(GF_matrix,self.WaveVectorMatrix.T))
+        GF_k_t = np.diagonal(GF_matrix_wavevector)
+        return GF_k_t
     
     def initialHamiltonianCavity(self,couplingStrength,cavityFrequency):
         self.couplingStrength = couplingStrength
